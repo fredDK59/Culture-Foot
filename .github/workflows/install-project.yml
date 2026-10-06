@@ -1,0 +1,65 @@
+name: Installer Culture Foot
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+
+      - name: Décompresser les lots
+        run: |
+          python - <<'PY'
+          import glob
+          import os
+          import shutil
+          import tempfile
+          import zipfile
+
+          zips = glob.glob("*.zip")
+
+          for archive in zips:
+              print(f"Décompression de {archive}")
+              with tempfile.TemporaryDirectory() as tmp:
+                  with zipfile.ZipFile(archive) as z:
+                      z.extractall(tmp)
+
+                  for name in os.listdir(tmp):
+                      src = os.path.join(tmp, name)
+                      dst = os.path.join(".", name)
+
+                      if os.path.isdir(src):
+                          os.makedirs(dst, exist_ok=True)
+                          for root, dirs, files in os.walk(src):
+                              rel = os.path.relpath(root, src)
+                              target = dst if rel == "." else os.path.join(dst, rel)
+                              os.makedirs(target, exist_ok=True)
+                              for f in files:
+                                  shutil.copy2(
+                                      os.path.join(root, f),
+                                      os.path.join(target, f)
+                                  )
+                      else:
+                          shutil.copy2(src, dst)
+
+          for archive in zips:
+              os.remove(archive)
+          PY
+
+      - name: Enregistrer les fichiers
+        run: |
+          git config user.name "Culture Foot"
+          git config user.email "culture-foot@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || git commit -m "Installer le projet Culture Foot"
+          git push
